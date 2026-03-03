@@ -1,30 +1,78 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from fastapi import APIRouter, HTTPException
+from typing import Optional
 import feedparser
 
-# Création d'une instance
-news_feed = feedparser.parse('https://www.france24.com/fr/rss')
+router = APIRouter()
 
-# Propriétés du flux
-print(news_feed.feed.keys())
+FLUX_URLS = [
+    "https://www.france24.com/fr/rss",
+    "https://www.lemonde.fr/international/rss_full.xml",
+]
 
-# Titre du flux
-print("Feed Title:", news_feed.feed.title) 
 
-# Sous-titre du flux
-print("Feed Subtitle:", news_feed.feed.subtitle)
+def parse_feed(url: str) -> dict:
+    """Parse un flux RSS et retourne les métadonnées + articles."""
+    feed = feedparser.parse(url)
 
-# Lien du flux
-print("Feed Link:", news_feed.feed.link, "\n")
+    if feed.bozo and not feed.entries:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Impossible de récupérer le flux : {url}"
+        )
 
-# Propriétés de chaque item du flux
-print(news_feed.entries[0].keys())
+    source_metadata = {
+        "source_title": feed.feed.get("title"),
+        "source_url":   feed.feed.get("link"),
+        "language":     feed.feed.get("language"),
+        "last_updated": feed.feed.get("updated"),
+        "subtitle":     feed.feed.get("subtitle"),
+        "total_entries": len(feed.entries),
+    }
 
-for entry in news_feed.entries:
-    print(f"{entry.title} --> {entry.link}")
-    
-# Récupération du deernier feed (dernier bulletin CERT-FR)
-for i in range(0, len(news_feed.entries)):
-    if i == (len(news_feed.entries)-1):
-        print("Alert: {} \nLink: {}".format(news_feed.entries[0]['title'], news_feed.entries[0]['id']))
+    articles = []
+    for entry in feed.entries:
+        articles.append({
+            "title":     entry.get("title"),
+            "link":      entry.get("link"),
+            "id":        entry.get("id"),
+            "published": entry.get("published"),
+            "summary":   entry.get("summary"),
+            "author":    entry.get("author"),
+        })
+
+    latest = articles[0] if articles else None
+
+    return {
+        "source": source_metadata,
+        "latest_article": latest,
+        "articles": articles,
+    }
+
+
+@router.get("/flux-rss")
+def get_flux_rss(url: Optional[str] = None):
+    """
+    Agrège et retourne les flux RSS configurés.
+
+    - Sans paramètre  → retourne tous les flux de FLUX_URLS
+    - ?url=<adresse>  → retourne uniquement le flux demandé
+    """
+    urls = [url] if url else FLUX_URLS
+
+    results = []
+    errors  = []
+
+    for feed_url in urls:
+        try:
+            results.append(parse_feed(feed_url))
+        except HTTPException as e:
+            errors.append({"url": feed_url, "error": e.detail})
+
+    return {
+        "total_sources": len(results),
+        "feeds": results,
+        **({"errors": errors} if errors else {}),
+    }
