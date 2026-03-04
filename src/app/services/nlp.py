@@ -8,7 +8,7 @@
 
 from fastapi import APIRouter, HTTPException
 import spacy
-from app.ingest_rss import get_flux_rss
+from src.app.ingest_rss import get_flux_rss
 
 router = APIRouter()
 

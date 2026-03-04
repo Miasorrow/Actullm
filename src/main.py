@@ -4,11 +4,16 @@
 
 import sys
 import os
-from app.ingest_rss import router as rss_router
-from app.services.nlp import router as nlp_router
+from src.app.ingest_rss import router as rss_router
+from src.app.services.nlp import router as nlp_router
 from fastapi import FastAPI
-from app.ingest_rss import router
+from src.app.ingest_rss import router
 import uvicorn
+
+from src.app.services.chromadb import load_articles_into_chroma
+
+if __name__ == "main":
+    load_articles_into_chroma()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

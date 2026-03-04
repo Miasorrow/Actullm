@@ -117,13 +117,15 @@ def chat(req: ChatReq):
 
     docs = retrieve_docs(req.message, req.k) if req.use_rag else []
     prompt = build_rag_prompt(req.message, docs) if docs else build_base_prompt(req.message)
-
-    if PROVIDER == "azure":
-        answer = azure_generate(prompt)
-        provider_used = "azure"
-    else:
-        answer = ollama_generate(prompt)
-        provider_used = "ollama"
+    provider_used = "ollama"
+    answer = ollama_generate(prompt)
+    
+    #if provider_used == "azure":
+     #   answer = azure_generate(prompt)
+      #  provider_used = "azure"
+    #else:
+     #   answer = ollama_generate(prompt)
+      #  provider_used = "ollama"
 
     return {
         "answer": answer,

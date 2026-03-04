@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 import feedparser
-from app.services.text_cleaner import clean_html
+from src.app.services.text_cleaner import clean_html
 
 router = APIRouter()
 
