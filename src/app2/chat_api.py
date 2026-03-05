@@ -1,26 +1,36 @@
+import os
+import time
+import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from dotenv import load_dotenv
-import time
-import requests
 from .prompts import build_base_prompt, build_rag_prompt
+
+load_dotenv()
+
+PROVIDER = os.getenv("LLM_PROVIDER", "ollama")  # "ollama" or "azure"
 
 app = FastAPI(title="ActuLLM - C4 Chat API")
 
-load_dotenv()
+
+
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
 
 # CORS (Même React peut parler avec l'API)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # for later
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-C3_RETRIEVE_URL = "http://127.0.0.1:8003/retrieve"
+RETRIEVE_URL = os.getenv("RETRIEVE_URL", "http://127.0.0.1:8000/retrieve")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "mistral"
 
@@ -42,7 +52,7 @@ def health():
     return {
         "chat": "ok",
         "ollama_url": OLLAMA_URL,
-        "c3_retrieve": C3_RETRIEVE_URL,
+        "c3_retrieve": RETRIEVE_URL,
     }
 
 
@@ -68,7 +78,7 @@ def build_prompt(message: str, docs: list[dict]) -> str:
 
 def retrieve_docs(query: str, k: int) -> list[dict]:
     try:
-        r = requests.get(C3_RETRIEVE_URL, params={"q": query, "k": k}, timeout=10)
+        r = requests.get(RETRIEVE_URL, params={"q": query, "k": k}, timeout=10)
         r.raise_for_status()
         data = r.json()
         return data.get("results", [])
@@ -76,6 +86,24 @@ def retrieve_docs(query: str, k: int) -> list[dict]:
         print(f"[WARN] C3 indisponible: {e}")
         return []
 
+def normalize_doc(d: dict) -> dict:
+    meta = d.get("metadata") or {}
+
+    title = meta.get("title", "")
+    url = meta.get("url") or meta.get("link") or ""
+    published = meta.get("published_at") or meta.get("published") or ""
+    source = meta.get("source") or meta.get("source_title") or meta.get("source_url") or ""
+
+    return {
+        "text": d.get("text", ""),
+        "metadata": {
+            "title": title,
+            "url": url,
+            "published_at": published,
+            "source": source,
+        },
+        "distance": d.get("distance"),
+    }
 
 def ollama_generate(prompt: str) -> str:
     payload = {"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}
@@ -116,16 +144,26 @@ def chat(req: ChatReq):
     t0 = time.time()
 
     docs = retrieve_docs(req.message, req.k) if req.use_rag else []
+    docs = [normalize_doc(d) for d in docs]
     prompt = build_rag_prompt(req.message, docs) if docs else build_base_prompt(req.message)
-    provider_used = "ollama"
-    answer = ollama_generate(prompt)
-    
-    #if provider_used == "azure":
-     #   answer = azure_generate(prompt)
-      #  provider_used = "azure"
-    #else:
-     #   answer = ollama_generate(prompt)
-      #  provider_used = "ollama"
+    provider_used = PROVIDER
+
+    if PROVIDER == "azure":
+        answer = azure_generate(prompt)
+        provider_used = "azure"
+    else:
+        try:
+            answer = ollama_generate(prompt)
+            provider_used = "ollama"
+        except Exception as e:
+            return {
+                "answer": "Erreur: Ollama n'est pas disponible (serveur 11434).",
+                "useRag": req.use_rag,
+                "sources_count": len(docs),
+                "sources": [],
+                "provider": "ollama",
+                "error": str(e),
+            }
 
     return {
         "answer": answer,
@@ -148,10 +186,7 @@ def chat(req: ChatReq):
 
 @app.post("/compare")
 def compare(req: CompareReq):
-    # 1) sans RAG
-    a = chat(ChatReq(message=req.message, userag=False, k=req.k))
-
-    # 2) avec RAG
-    b = chat(ChatReq(message=req.message, userag=True, k=req.k))
+    a = chat(ChatReq(message=req.message, useRag=False, k=req.k))
+    b = chat(ChatReq(message=req.message, useRag=True, k=req.k))
 
     return {"noRag": a, "withRag": b}
