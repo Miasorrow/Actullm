@@ -1,0 +1,61 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: actullm_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh","-lc"]
+    command: >
+      sleep 2 &&
+      ollama pull mistral &&
+      echo 'mistral ready'
+    restart: "no"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  app:
+    build: .
+    container_name: actullm_app
+    ports:
+      - "8081:80"
+    env_file:
+      - ./src/app2/.env
+    volumes:
+      - ./chroma_data:/chroma_data
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    depends_on:
+      - ollama
+      - ollama-init
+
+  vectorize-init:
+    image: curlimages/curl:latest
+    depends_on:
+      - app
+    entrypoint: ["/bin/sh","-lc"]
+    command: >
+      echo "Waiting for API..." &&
+      until curl -sSf http://app/api/health >/dev/null; do
+        sleep 1;
+      done &&
+      curl -sS -X POST http://app/api/vectorize &&
+      echo "Vectorize done"
+    restart: "no"
+
+volumes:
+  ollama_data:

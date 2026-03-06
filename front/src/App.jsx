@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { chat, compare } from "./api/chat";
+import { chat, compare4 } from "./api/chat";
 
 export default function App() {
   const [messages, setMessages] = useState([
@@ -60,13 +60,41 @@ export default function App() {
     scrollToBottom();
 
     try {
-      const data = await compare({ message: userText });
+      const [
+        ollamaNoRag,
+        ollamaWithRag,
+        azureNoRag,
+        azureWithRag
+      ] = await Promise.all([
+        chat({ message: userText, useRag: false, provider: "ollama" }),
+        chat({ message: userText, useRag: true, provider: "ollama" }),
+        chat({ message: userText, useRag: false, provider: "azure" }),
+        chat({ message: userText, useRag: true, provider: "azure" })
+      ]);
 
-      const a = data?.noRag?.answer ?? "Réponse vide (sans RAG).";
-      const b = data?.withRag?.answer ?? "Réponse vide (avec RAG).";
+      push(
+        "assistant",
+        `Ollama — Sans RAG:\n${ollamaNoRag?.answer ?? "Réponse vide."}`,
+        { sources: ollamaNoRag?.sources || [] }
+      );
 
-      push("assistant", `Sans RAG:\n${a}`, { sources: data?.noRag?.sources || [] });
-      push("assistant", `Avec RAG:\n${b}`, { sources: data?.withRag?.sources || [] });
+      push(
+        "assistant",
+        `Ollama — Avec RAG:\n${ollamaWithRag?.answer ?? "Réponse vide."}`,
+        { sources: ollamaWithRag?.sources || [] }
+      );
+
+      push(
+        "assistant",
+        `Azure — Sans RAG:\n${azureNoRag?.answer ?? "Réponse vide."}`,
+        { sources: azureNoRag?.sources || [] }
+      );
+
+      push(
+        "assistant",
+        `Azure — Avec RAG:\n${azureWithRag?.answer ?? "Réponse vide."}`,
+        { sources: azureWithRag?.sources || [] }
+      );
     } catch (err) {
       const msg = err?.response?.data?.detail || err?.message || "Erreur inconnue.";
       push("assistant", `Erreur comparaison : ${msg}`);

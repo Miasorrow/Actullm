@@ -3,28 +3,31 @@ import axios from "axios";
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 /**
- * Appelle l'API du backend pour obtenir une réponse.
- * Attendu côté backend:
  * POST /chat
- * Body: { message: string, use_rag: boolean }
- * Retour: { answer: string, sources?: Array }
+ * Body: { message: string, useRag: boolean, provider?: "ollama"|"azure", k?: number }
  */
-export async function chat({ message, useRag }) {
+export async function chat({ message, useRag, provider, k }) {
   const res = await axios.post(`${API_URL}/chat`, {
     message,
-    use_rag: useRag
+    useRag,         
+    provider,       
+    ...(k ? { k } : {})
   });
   return res.data;
 }
 
 /**
- * Compare les réponses: sans RAG vs avec RAG.
- * Retour: { noRag: {...}, withRag: {...} }
+ * Compare 4 réponses:
+ * - Ollama sans RAG / avec RAG
+ * - Azure  sans RAG / avec RAG
  */
-export async function compare({ message }) {
-  const [noRag, withRag] = await Promise.all([
-    chat({ message, useRag: false }),
-    chat({ message, useRag: true })
+export async function compare4({ message }) {
+  const [ollamaNoRag, ollamaWithRag, azureNoRag, azureWithRag] = await Promise.all([
+    chat({ message, useRag: false, provider: "ollama" }),
+    chat({ message, useRag: true,  provider: "ollama" }),
+    chat({ message, useRag: false, provider: "azure" }),
+    chat({ message, useRag: true,  provider: "azure" })
   ]);
-  return { noRag, withRag };
+
+  return { ollamaNoRag, ollamaWithRag, azureNoRag, azureWithRag };
 }

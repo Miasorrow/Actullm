@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Virtual env
+venv/
+.env/
+.env.BACKUP
+
+# Node
+node_modules/
+front/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build / cache
+dist/
+build/
+.cache/
+
+# Local data
+chroma_data/
+ollama_data/
+
+# Docker
+docker-compose*.yml
+
+# Documentation
+*.md

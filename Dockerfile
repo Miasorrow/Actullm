@@ -33,5 +33,9 @@ COPY nginx.prod.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 
-# run backend + nginx
-CMD sh -c "uvicorn src.main:app --host 0.0.0.0 --port 8000 --root-path /api & nginx -g 'daemon off;'"
+# start script (API then Nginx)
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+EXPOSE 80
+CMD ["/start.sh"]

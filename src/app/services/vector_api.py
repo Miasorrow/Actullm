@@ -70,19 +70,27 @@ def vectorize() -> VectorizeResp:
         for a in feed.get("articles", []):
             articles_count += 1
 
-            url = a.get("url", "") or ""
-            published_at = a.get("published_at", "") or ""
-            _id = a.get("id") or _make_id(url, published_at)
+            
+            # FIX: RSS uses link/published, but our vectorizer expects url/published_at
+            url = (a.get("url") or a.get("link") or "").strip()
+            published_at = (a.get("published_at") or a.get("published") or "").strip()
+
+            # If id is missing, make a stable id from url + published_at
+            _id = a.get("id") or _make_id(url or "no-url", published_at or "no-date")
 
             text = a.get("lemmatized_text") or a.get("text") or ""
             if not text.strip():
                 continue
 
             meta = {
-                "title": a.get("title", ""),
-                "url": url,
-                "published_at": published_at,
-                "source": (feed.get("source") or {}).get("source_title", "") or "",
+                "title": (a.get("title") or "").strip(),
+                "url": url,                 # unified field
+                "published_at": published_at,# unified field
+                "source": ((feed.get("source") or {}).get("source_title") or "").strip(),
+
+                # optional: keep original RSS keys for debugging/trace
+                "link": (a.get("link") or "").strip(),
+                "published": (a.get("published") or "").strip(),
             }
 
             ids.append(str(_id))

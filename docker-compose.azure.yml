@@ -1,30 +1,15 @@
 services:
-  back:
-    image: <ACR_NAME>.azurecr.io/actullm-back:latest
-    environment:
-      - CHROMA_PATH=/home/chroma_data
-      - LLM_PROVIDER=azure
-      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
-      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
-      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
-      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
-      - RETRIEVE_URL=http://127.0.0.1:8000/retrieve
-    volumes:
-      - /home/chroma_data:/home/chroma_data
-    expose:
-      - "8000"
-
-  front:
-    image: <ACR_NAME>.azurecr.io/actullm-front:latest
-    expose:
-      - "80"
-
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - back
-      - front
+  app:
+    build: .
+    container_name: actullm_azure_app
     ports:
-      - "80:80"
+      - "8081:80"
+    env_file:
+      - ./src/app2/.env
+    environment:
+      - LLM_PROVIDER=azure
+      - AUTO_VECTORIZE=0
+      - CHROMA_PATH=/chroma_data
+    volumes:
+      - ./chroma_data:/chroma_data
+      - ~/.cache/huggingface:/root/.cache/huggingface

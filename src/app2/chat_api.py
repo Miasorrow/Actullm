@@ -36,6 +36,7 @@ class ChatReq(BaseModel):
     message: str
     use_rag: bool = Field(True, alias="useRag")
     k: int = 5
+    provider: str | None = None
 
     class Config:
         populate_by_name = True
@@ -77,10 +78,10 @@ def retrieve_docs(query: str, k: int) -> list[dict]:
     try_urls.append(RETRIEVE_URL)
 
     # 2) auto-fallback between /retrieve and /api/retrieve
-    if RETRIEVE_URL.endswith("/retrieve"):
-        try_urls.append(RETRIEVE_URL[:-len("/retrieve")] + "/api/retrieve")
-    elif RETRIEVE_URL.endswith("/api/retrieve"):
+    if RETRIEVE_URL.endswith("/api/retrieve"):
         try_urls.append(RETRIEVE_URL[:-len("/api/retrieve")] + "/retrieve")
+    elif RETRIEVE_URL.endswith("/retrieve"):
+        try_urls.append(RETRIEVE_URL[:-len("/retrieve")] + "/api/retrieve")
 
     last_err: Exception | None = None
 
@@ -123,7 +124,7 @@ def normalize_doc(d: dict) -> dict:
 
 def ollama_generate(prompt: str) -> str:
     payload = {"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}
-    r = requests.post(OLLAMA_URL, json=payload, timeout=120)
+    r = requests.post(OLLAMA_URL, json=payload, timeout=600)
     r.raise_for_status()
     return r.json().get("response", "").strip()
 
@@ -170,9 +171,9 @@ def chat(req: ChatReq):
 
     prompt = build_rag_prompt(req.message, docs) if docs else build_base_prompt(req.message)
 
-    provider_used = PROVIDER
+    provider_used = (req.provider or PROVIDER).lower()
 
-    if PROVIDER == "azure":
+    if provider_used == "azure":
         try:
             answer = azure_generate(prompt)
             provider_used = "azure"
